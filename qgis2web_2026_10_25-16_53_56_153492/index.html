@@ -7,53 +7,28 @@
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
         <link rel="stylesheet" href="css/qgis2web.css">
         <link rel="stylesheet" href="css/fontawesome-all.min.css">
         <link rel="stylesheet" href="css/MarkerCluster.css">
         <link rel="stylesheet" href="css/MarkerCluster.Default.css">
         <link rel="stylesheet" href="css/leaflet.photon.css">
         <style>
-            html, body, #map {
-                width: 100%;
-                height: 100%;
-                padding: 0;
-                margin: 0;
-                background: #f2efe9;
-            }
-            /* 錯誤提示框 */
-            #error-overlay {
-                position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-                background: rgba(200,30,30,0.95); color: #fff;
-                padding: 10px 16px; font: 12px/1.5 monospace;
-                border-radius: 4px; display: none; z-index: 9999;
-                max-width: 92%; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-                white-space: pre-wrap;
-            }
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
         </style>
-        <title>Map</title>
+        <title></title>
     </head>
     <body>
-        <div id="map"></div>
-        <div id="error-overlay"></div>
-
-        <!-- 錯誤捕捉 -->
-        <script>
-        window.addEventListener('error', function (e) {
-            var el = document.getElementById('error-overlay');
-            if (!el) return;
-            var t = e.target;
-            if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
-                el.style.display = 'block';
-                el.textContent += '❌ 無法載入: ' + (t.src || t.href) + '\n';
-            } else if (e.message) {
-                el.style.display = 'block';
-                el.textContent += '❌ ' + e.message + '  (' + (e.filename || '') + ':' + (e.lineno || '') + ')\n';
-            }
-        }, true);
-        </script>
-
-        <!-- 第三方 JS 庫 -->
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
         <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
         <script src="js/leaflet.rotatedMarker.js"></script>
         <script src="js/leaflet.pattern.js"></script>
         <script src="js/leaflet-hash.js"></script>
@@ -63,243 +38,694 @@
         <script src="js/labels.js"></script>
         <script src="js/leaflet.photon.js"></script>
         <script src="js/leaflet.markercluster.js"></script>
-
-        <!-- 資料檔 (請確認這三個檔案存在於 GitHub 的 data/ 資料夾) -->
         <script src="data/villagesizev1_3.js"></script>
         <script src="data/week5_table2_4.js"></script>
         <script src="data/module1_photopath_5.js"></script>
-
         <script>
-        (function () {
-            // 初始化地圖 (定位在香港)
-            var map = L.map('map', {
-                zoomControl: false, maxZoom: 28, minZoom: 1,
-                center: [22.28, 113.93], zoom: 14
-            });
-
-            try { new L.Hash(map); } catch (e) { console.warn('L.Hash:', e); }
-            map.attributionControl.setPrefix('qgis2web &middot; Leaflet &middot; QGIS');
-            var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
-
-            // ==========================================
-            // 照片路徑處理函式 (自動切掉不必要的路徑，並加上 images/)
-            // ==========================================
-            function buildPhotoSrc(rawPath) {
-                if (!rawPath) return '';
-                var p = String(rawPath).trim().replace(/\\/g, '/'); // 將 \ 換成 /
-                
-                // 如果包含目錄 (例如 C:/.../photo1.jpg 或 folder/photo1.jpg)，只取最後的檔名
-                if (p.indexOf('/') !== -1) {
-                    p = p.split('/').pop();
-                }
-                
-                // 回傳 images/檔名，並進行 URL 編碼 (處理中文與空白)
-                return 'images/' + encodeURIComponent(p);
-            }
-
-            function removeEmptyRowsFromPopupContent(content, feature) {
-                var tempDiv = document.createElement('div');
-                tempDiv.innerHTML = content;
-                var rows = tempDiv.querySelectorAll('tr');
-                for (var i = 0; i < rows.length; i++) {
-                    var td = rows[i].querySelector('td.visible-with-data');
-                    var key = td ? td.id : '';
-                    if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
-                        rows[i].parentNode.removeChild(rows[i]);
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[22.280143961866028,113.93401059253787],[22.28419323927383,113.94088141094889]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    var img = popup._contentNode.querySelector('td img');
+                    if (img) {
+                        // If already loaded (cache), update immediately
+                        if (img.complete && img.naturalHeight > 0) {
+                            popup.update();
+                        } else {
+                            img.addEventListener('load', function() {
+                                popup.update();
+                            });
+                            img.addEventListener('error', function() {
+                                popup.update();
+                            });
+                        }
                     }
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
                 }
-                return tempDiv.innerHTML;
+            } else {
+                popup._contentNode.classList.remove('media');
             }
+        }
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_OPM100_2025_0');
+        map.getPane('pane_OPM100_2025_0').style.zIndex = 400;
+        var img_OPM100_2025_0 = 'data/OPM100_2025_0.png';
+        var img_bounds_OPM100_2025_0 = [[22.076205181083964,113.75167100210537],[22.624727555473488,114.51155829843452]];
+        var layer_OPM100_2025_0 = new L.imageOverlay(img_OPM100_2025_0,
+                                              img_bounds_OPM100_2025_0,
+                                              {pane: 'pane_OPM100_2025_0'});
+        bounds_group.addLayer(layer_OPM100_2025_0);
+        map.addLayer(layer_OPM100_2025_0);
+        map.createPane('pane_9SEA_1');
+        map.getPane('pane_9SEA_1').style.zIndex = 401;
+        var img_9SEA_1 = 'data/9SEA_1.png';
+        var img_bounds_9SEA_1 = [[22.273607952312364,113.89769308407159],[22.300758044667496,113.93413201704129]];
+        var layer_9SEA_1 = new L.imageOverlay(img_9SEA_1,
+                                              img_bounds_9SEA_1,
+                                              {pane: 'pane_9SEA_1'});
+        bounds_group.addLayer(layer_9SEA_1);
+        map.addLayer(layer_9SEA_1);
+        map.createPane('pane_9SEB_2');
+        map.getPane('pane_9SEB_2').style.zIndex = 402;
+        var img_9SEB_2 = 'data/9SEB_2.png';
+        var img_bounds_9SEB_2 = [[22.273666401328807,113.93408524462212],[22.300808410150857,113.9705172786357]];
+        var layer_9SEB_2 = new L.imageOverlay(img_9SEB_2,
+                                              img_bounds_9SEB_2,
+                                              {pane: 'pane_9SEB_2'});
+        bounds_group.addLayer(layer_9SEB_2);
+        map.addLayer(layer_9SEB_2);
+        function pop_villagesizev1_3(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['村落'] !== null ? autolinker.link(String(feature.properties['村落']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['總戶數（戶）'] !== null ? autolinker.link(String(feature.properties['總戶數（戶）']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['總人口（人）'] !== null ? autolinker.link(String(feature.properties['總人口（人）']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['平均每戶人數（人）'] !== null ? autolinker.link(String(feature.properties['平均每戶人數（人）']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['對應地名／處理方式'] !== null ? autolinker.link(String(feature.properties['對應地名／處理方式']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['緯度 Latitude'] !== null ? autolinker.link(String(feature.properties['緯度 Latitude']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['經度 Longitude'] !== null ? autolinker.link(String(feature.properties['經度 Longitude']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['座標來源'] !== null ? autolinker.link(String(feature.properties['座標來源']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
 
-            function addClassToPopupIfMedia(content, popup) {
-                var tempDiv = document.createElement('div');
-                tempDiv.innerHTML = content;
-                var imgTd = tempDiv.querySelector('td img');
-                if (imgTd) {
-                    var src = imgTd.getAttribute('src');
-                    if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
-                        popup._contentNode.classList.add('media');
-                    }
-                }
-            }
-
-            L.control.zoom({position: 'topleft'}).addTo(map);
-            var bounds_group = new L.featureGroup([]);
-
-            // ==========================================
-            // 1. Image Overlay (底圖疊加)
-            // ==========================================
-            var imgOverlays = [
-                ['pane_OPM100_2025_0', 'data/OPM100_2025_0.png', [[22.076205181083964,113.75167100210537],[22.624727555473488,114.51155829843452]], 400],
-                ['pane_9SEA_1', 'data/9SEA_1.png', [[22.273607952312364,113.89769308407159],[22.300758044667496,113.93413201704129]], 401],
-                ['pane_9SEB_2', 'data/9SEB_2.png', [[22.273666401328807,113.93408524462212],[22.300808410150857,113.9705172786357]], 402]
-            ];
-            imgOverlays.forEach(function (o) {
-                map.createPane(o[0]);
-                map.getPane(o[0]).style.zIndex = o[3];
-                var layer = new L.imageOverlay(o[1], o[2], {pane: o[0]});
-                bounds_group.addLayer(layer);
-                map.addLayer(layer);
-            });
-
-            // ==========================================
-            // 2. Layer: villagesizev1_3 (綠點)
-            // ==========================================
-            function pop_villagesizev1_3(feature, layer) {
-                var p = feature.properties;
-                var c = '<table>' +
-                    '<tr><td colspan="2">' + (p['村落'] != null ? autolinker.link(String(p['村落'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['總戶數（戶）'] != null ? autolinker.link(String(p['總戶數（戶）'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['總人口（人）'] != null ? autolinker.link(String(p['總人口（人）'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['平均每戶人數（人）'] != null ? autolinker.link(String(p['平均每戶人數（人）'])) : '') + '</td></tr>' +
-                    '</table>';
-                var content = removeEmptyRowsFromPopupContent(c, feature);
-                layer.bindPopup(content, { maxHeight: 400 });
-            }
-            map.createPane('pane_villagesizev1_3');
-            map.getPane('pane_villagesizev1_3').style.zIndex = 403;
-
-            if (typeof json_villagesizev1_3 === 'undefined') {
-                window.json_villagesizev1_3 = {type:'FeatureCollection', features:[]};
-            }
-            var layer_villagesizev1_3 = new L.geoJson(json_villagesizev1_3, {
+        function style_villagesizev1_3_0() {
+            return {
                 pane: 'pane_villagesizev1_3',
-                onEachFeature: pop_villagesizev1_3,
-                pointToLayer: function (feature, latlng) {
-                    return L.circleMarker(latlng, {
-                        radius: 8.0, color: 'rgba(61,128,53,1.0)', weight: 2.0,
-                        fillColor: 'rgba(84,176,74,1.0)', fillOpacity: 1
-                    });
-                }
-            });
-            var cluster_villagesizev1_3 = new L.MarkerClusterGroup({showCoverageOnHover: false, spiderfyDistanceMultiplier: 2});
-            cluster_villagesizev1_3.addLayer(layer_villagesizev1_3);
-            bounds_group.addLayer(layer_villagesizev1_3);
-            cluster_villagesizev1_3.addTo(map);
-
-            // ==========================================
-            // 3. Layer: week5_table2_4 (紅點，有照片)
-            // ==========================================
-            function pop_week5_table2_4(feature, layer) {
-                var p = feature.properties;
-                var imgUrl = buildPhotoSrc(p['photo_path']);
-                var imgHtml = p['photo_path'] != null ? '<img src="' + imgUrl + '" style="max-width:100%; max-height:300px; border:1px solid #ccc;" onerror="this.src=\'https://via.placeholder.com/150?text=Photo+Not+Found\'; console.error(\'找不到照片: \'+this.src)">' : '';
-
-                var c = '<table>' +
-                    '<tr><td colspan="2">' + (p['photo_no'] != null ? autolinker.link(String(p['photo_no'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['box_no'] != null ? autolinker.link(String(p['box_no'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['file_name'] != null ? autolinker.link(String(p['file_name'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2" style="text-align:center;">' + imgHtml + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['keycode'] != null ? autolinker.link(String(p['keycode'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['notes'] != null ? autolinker.link(String(p['notes'])) : '') + '</td></tr>' +
-                    '</table>';
-                var content = removeEmptyRowsFromPopupContent(c, feature);
-                layer.on('popupopen', function(e){ addClassToPopupIfMedia(content, e.popup); });
-                layer.bindPopup(content, { maxHeight: 400 });
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(61,128,53,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(84,176,74,1.0)',
+                interactive: true,
             }
-            map.createPane('pane_week5_table2_4');
-            map.getPane('pane_week5_table2_4').style.zIndex = 404;
-
-            if (typeof json_week5_table2_4 === 'undefined') {
-                window.json_week5_table2_4 = {type:'FeatureCollection', features:[]};
-            }
-            var layer_week5_table2_4 = new L.geoJson(json_week5_table2_4, {
-                pane: 'pane_week5_table2_4',
-                onEachFeature: pop_week5_table2_4,
-                pointToLayer: function (feature, latlng) {
-                    return L.circleMarker(latlng, {
-                        radius: 8.0, color: 'rgba(61,128,53,1.0)', weight: 2.0,
-                        fillColor: 'rgba(238,0,33,1.0)', fillOpacity: 1
-                    });
-                }
-            });
-            var cluster_week5_table2_4 = new L.MarkerClusterGroup({showCoverageOnHover: false, spiderfyDistanceMultiplier: 2});
-            cluster_week5_table2_4.addLayer(layer_week5_table2_4);
-            bounds_group.addLayer(layer_week5_table2_4);
-            cluster_week5_table2_4.addTo(map);
-
-            // ==========================================
-            // 4. Layer: module1_photopath_5 (彩色點，有照片)
-            // ==========================================
-            function pop_module1_photopath_5(feature, layer) {
-                var p = feature.properties;
-                var imgUrl = buildPhotoSrc(p['photo_path']);
-                var imgHtml = p['photo_path'] != null ? '<img src="' + imgUrl + '" style="max-width:100%; max-height:300px; border:1px solid #ccc;" onerror="this.src=\'https://via.placeholder.com/150?text=Photo+Not+Found\'; console.error(\'找不到照片: \'+this.src)">' : '';
-
-                var c = '<table>' +
-                    '<tr><td colspan="2">' + (p['record_no'] != null ? autolinker.link(String(p['record_no'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['box_no'] != null ? autolinker.link(String(p['box_no'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['photo_no'] != null ? autolinker.link(String(p['photo_no'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['remarks_raw'] != null ? autolinker.link(String(p['remarks_raw'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (p['Location_note'] != null ? autolinker.link(String(p['Location_note'])) : '') + '</td></tr>' +
-                    '<tr><td colspan="2" style="text-align:center;">' + imgHtml + '</td></tr>' +
-                    '</table>';
-                var content = removeEmptyRowsFromPopupContent(c, feature);
-                layer.on('popupopen', function(e){ addClassToPopupIfMedia(content, e.popup); });
-                layer.bindPopup(content, { maxHeight: 400 });
-            }
-            map.createPane('pane_module1_photopath_5');
-            map.getPane('pane_module1_photopath_5').style.zIndex = 405;
-
-            function style_module1_photopath_5_0(feature) {
-                var color = 'rgba(215,25,28,1.0)'; // 預設紅色
-                if (feature.properties['Location_note'] == '伯公 龍井頭村口') color = 'rgba(223,58,43,1.0)';
-                if (feature.properties['Location_note'] == '黃家圍村口') color = 'rgba(253,183,107,1.0)';
-                if (feature.properties['Location_note'] == '黃家圍圍門') color = 'rgba(255,255,191,1.0)';
-                // 你可以依照需求繼續加...
-                return {
-                    pane: 'pane_module1_photopath_5',
-                    radius: 8.0, color: 'rgba(128,17,25,1.0)', weight: 2.0,
-                    fillColor: color, fillOpacity: 1
+        }
+        map.createPane('pane_villagesizev1_3');
+        map.getPane('pane_villagesizev1_3').style.zIndex = 403;
+        map.getPane('pane_villagesizev1_3').style['mix-blend-mode'] = 'normal';
+        var layer_villagesizev1_3 = new L.geoJson(json_villagesizev1_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_villagesizev1_3',
+            layerName: 'layer_villagesizev1_3',
+            pane: 'pane_villagesizev1_3',
+            onEachFeature: pop_villagesizev1_3,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
                 };
-            }
+                return L.circleMarker(latlng, style_villagesizev1_3_0(feature));
+            },
+        });
+        var cluster_villagesizev1_3 = new L.MarkerClusterGroup({showCoverageOnHover: false,
+            spiderfyDistanceMultiplier: 2});
+        cluster_villagesizev1_3.addLayer(layer_villagesizev1_3);
 
-            if (typeof json_module1_photopath_5 === 'undefined') {
-                window.json_module1_photopath_5 = {type:'FeatureCollection', features:[]};
+        bounds_group.addLayer(layer_villagesizev1_3);
+        cluster_villagesizev1_3.addTo(map);
+        function pop_week5_table2_4(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['photo_no'] !== null ? autolinker.link(String(feature.properties['photo_no']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['box_no'] !== null ? autolinker.link(String(feature.properties['box_no']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['file_name'] !== null ? autolinker.link(String(feature.properties['file_name']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/[\\/:]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['keycode'] !== null ? autolinker.link(String(feature.properties['keycode']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['notes'] !== null ? autolinker.link(String(feature.properties['notes']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['photographer'] !== null ? autolinker.link(String(feature.properties['photographer']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['handler'] !== null ? autolinker.link(String(feature.properties['handler']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Sorting_date'] !== null ? autolinker.link(String(feature.properties['Sorting_date']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['place_name'] !== null ? autolinker.link(String(feature.properties['place_name']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['direction'] !== null ? autolinker.link(String(feature.properties['direction']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['latitude'] !== null ? autolinker.link(String(feature.properties['latitude']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['longitude'] !== null ? autolinker.link(String(feature.properties['longitude']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_week5_table2_4_0() {
+            return {
+                pane: 'pane_week5_table2_4',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(61,128,53,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(238,0,33,1.0)',
+                interactive: true,
             }
-            var layer_module1_photopath_5 = new L.geoJson(json_module1_photopath_5, {
+        }
+        map.createPane('pane_week5_table2_4');
+        map.getPane('pane_week5_table2_4').style.zIndex = 404;
+        map.getPane('pane_week5_table2_4').style['mix-blend-mode'] = 'normal';
+        var layer_week5_table2_4 = new L.geoJson(json_week5_table2_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_week5_table2_4',
+            layerName: 'layer_week5_table2_4',
+            pane: 'pane_week5_table2_4',
+            onEachFeature: pop_week5_table2_4,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_week5_table2_4_0(feature));
+            },
+        });
+        var cluster_week5_table2_4 = new L.MarkerClusterGroup({showCoverageOnHover: false,
+            spiderfyDistanceMultiplier: 2});
+        cluster_week5_table2_4.addLayer(layer_week5_table2_4);
+
+        bounds_group.addLayer(layer_week5_table2_4);
+        cluster_week5_table2_4.addTo(map);
+        function pop_module1_photopath_5(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['record_no'] !== null ? autolinker.link(String(feature.properties['record_no']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['box_no'] !== null ? autolinker.link(String(feature.properties['box_no']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['photo_no'] !== null ? autolinker.link(String(feature.properties['photo_no']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['remarks_raw'] !== null ? autolinker.link(String(feature.properties['remarks_raw']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Location_note'] !== null ? autolinker.link(String(feature.properties['Location_note']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['latitude'] !== null ? autolinker.link(String(feature.properties['latitude']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['longitude'] !== null ? autolinker.link(String(feature.properties['longitude']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['coordinate_source'] !== null ? autolinker.link(String(feature.properties['coordinate_source']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['coordinate_confidence'] !== null ? autolinker.link(String(feature.properties['coordinate_confidence']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['coordinate_note'] !== null ? autolinker.link(String(feature.properties['coordinate_note']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['check'] !== null ? autolinker.link(String(feature.properties['check']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['clearing_note'] !== null ? autolinker.link(String(feature.properties['clearing_note']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/[\\/:]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_module1_photopath_5_0(feature) {
+            switch(String(feature.properties['Location_note'])) {
+                case '天官 黃家偉路口':
+                    return {
                 pane: 'pane_module1_photopath_5',
-                onEachFeature: pop_module1_photopath_5,
-                pointToLayer: function (feature, latlng) {
-                    return L.circleMarker(latlng, style_module1_photopath_5_0(feature));
-                }
-            });
-            var cluster_module1_photopath_5 = new L.MarkerClusterGroup({showCoverageOnHover: false, spiderfyDistanceMultiplier: 2});
-            cluster_module1_photopath_5.addLayer(layer_module1_photopath_5);
-            bounds_group.addLayer(layer_module1_photopath_5);
-            cluster_module1_photopath_5.addTo(map);
-
-            // ==========================================
-            // 綁定標籤 (Tooltip)
-            // ==========================================
-            var i = 0;
-            layer_villagesizev1_3.eachLayer(function (layer) {
-                var t = layer.feature.properties['村落'];
-                if (t) {
-                    layer.bindTooltip('<div style="color:#323232;font-size:10pt;font-family:\'Kaiti TC\',sans-serif;">' + t + '</div>', {permanent: true, offset: [0, -16], className: 'css_villagesizev1_3'});
-                    labels.push(layer); totalMarkers += 1; layer.added = true; addLabel(layer, i); i++;
-                }
-            });
-
-            function refreshLabels() {
-                if (typeof resetLabels === 'function') {
-                    resetLabels([layer_villagesizev1_3, layer_week5_table2_4, layer_module1_photopath_5]);
-                }
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(215,25,28,1.0)',
+                interactive: true,
             }
-            refreshLabels();
-            map.on("zoomend", refreshLabels);
-            map.on("layeradd", refreshLabels);
-            map.on("layerremove", refreshLabels);
+                    break;
+                case '伯公 龍井頭村口':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(223,58,43,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '春節間的伯公（龍井頭）':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(232,91,59,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '春聯（黃家圍最西側一家）':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(240,124,74,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '開門公（黃家圍）':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(249,157,89,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '黃家圍 破屋':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(253,183,107,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '黃家圍村口':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(254,201,128,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '黃家圍村口 近馬路':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(254,219,149,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '黃家圍祖屋前石頭崇拜':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,237,170,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '黃家圍圍門':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,191,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '黃家圍圍門 門旁':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(236,247,185,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '龍井4A側（樹枝及紅紙）':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(218,240,179,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '龍井頭村4號之果樹掛滿紅紙':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(199,232,173,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '龍井頭村4A附近雞籠':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(180,225,167,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '龍井頭村5號門外之雞籠（貼紅紙代表大吉大利）':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(157,211,166,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '龍井頭村口':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(128,191,171,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '龍井頭村口（#23之左邊）':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(100,171,176,1.0)',
+                interactive: true,
+            }
+                    break;
+                case '龍井頭村口石頭崇拜':
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(71,151,181,1.0)',
+                interactive: true,
+            }
+                    break;
+                default:
+                    return {
+                pane: 'pane_module1_photopath_5',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(128,17,25,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 2.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(43,131,186,1.0)',
+                interactive: true,
+            }
+                    break;
+            }
+        }
+        map.createPane('pane_module1_photopath_5');
+        map.getPane('pane_module1_photopath_5').style.zIndex = 405;
+        map.getPane('pane_module1_photopath_5').style['mix-blend-mode'] = 'normal';
+        var layer_module1_photopath_5 = new L.geoJson(json_module1_photopath_5, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_module1_photopath_5',
+            layerName: 'layer_module1_photopath_5',
+            pane: 'pane_module1_photopath_5',
+            onEachFeature: pop_module1_photopath_5,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_module1_photopath_5_0(feature));
+            },
+        });
+        var cluster_module1_photopath_5 = new L.MarkerClusterGroup({showCoverageOnHover: false,
+            spiderfyDistanceMultiplier: 2});
+        cluster_module1_photopath_5.addLayer(layer_module1_photopath_5);
 
-            // 自動縮放到圖層範圍
-            try {
-                if (bounds_group.getLayers().length > 0) {
-                    var b = bounds_group.getBounds();
-                    if (b.isValid()) map.fitBounds(b, {padding: [20, 20]});
-                }
-            } catch (e) { console.warn('fitBounds error:', e); }
-
-        })();
-        </script>
+        bounds_group.addLayer(layer_module1_photopath_5);
+        cluster_module1_photopath_5.addTo(map);
+        setBounds();
+        var i = 0;
+        layer_villagesizev1_3.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['村落'] !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Kaiti TC\', sans-serif;">' + layer.feature.properties['村落']).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_villagesizev1_3'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        L.ImageOverlay.include({
+            getBounds: function () {
+                return this._bounds;
+            }
+        });
+        resetLabels([layer_villagesizev1_3,layer_week5_table2_4]);
+        map.on("zoomend", function(){
+            resetLabels([layer_villagesizev1_3,layer_week5_table2_4]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_villagesizev1_3,layer_week5_table2_4]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_villagesizev1_3,layer_week5_table2_4]);
+        });
+        </script>        
     </body>
 </html>
