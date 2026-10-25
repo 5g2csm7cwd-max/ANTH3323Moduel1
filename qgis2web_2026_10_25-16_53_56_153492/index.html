@@ -73,7 +73,6 @@
                     popup._contentNode.classList.add('media');
                     var img = popup._contentNode.querySelector('td img');
                     if (img) {
-                        // If already loaded (cache), update immediately
                         if (img.complete && img.naturalHeight > 0) {
                             popup.update();
                         } else {
@@ -105,7 +104,6 @@
                     video.style.maxWidth = "60vw";
                     imgTd.parentNode.replaceChild(video, imgTd);
                     popup._contentNode.classList.add('media');
-                    // Aggiorna il popup quando il video carica i metadati
                     video.addEventListener('loadedmetadata', function() {
                         popup.update();
                     });
@@ -214,10 +212,6 @@
             pane: 'pane_villagesizev1_3',
             onEachFeature: pop_villagesizev1_3,
             pointToLayer: function (feature, latlng) {
-                var context = {
-                    feature: feature,
-                    variables: {}
-                };
                 return L.circleMarker(latlng, style_villagesizev1_3_0(feature));
             },
         });
@@ -239,7 +233,7 @@
                         <td colspan="2">' + (feature.properties['file_name'] !== null ? autolinker.link(String(feature.properties['file_name']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
                     </tr>\
                     <tr>\
-                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/C:[\\\/]/gi, '_').replace(/[\\\/]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
+                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).split(/[\\\/]/).pop().trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
                     </tr>\
                     <tr>\
                         <td colspan="2">' + (feature.properties['keycode'] !== null ? autolinker.link(String(feature.properties['keycode']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
@@ -303,10 +297,6 @@
             pane: 'pane_week5_table2_4',
             onEachFeature: pop_week5_table2_4,
             pointToLayer: function (feature, latlng) {
-                var context = {
-                    feature: feature,
-                    variables: {}
-                };
                 return L.circleMarker(latlng, style_week5_table2_4_0(feature));
             },
         });
@@ -355,7 +345,7 @@
                         <td colspan="2">' + (feature.properties['clearing_note'] !== null ? autolinker.link(String(feature.properties['clearing_note']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
                     </tr>\
                     <tr>\
-                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/C:[\\\/]/gi, '_').replace(/[\\\/]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
+                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).split(/[\\\/]/).pop().trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
                     </tr>\
                 </table>';
             var content = removeEmptyRowsFromPopupContent(popupContent, feature);
@@ -684,10 +674,6 @@
             pane: 'pane_module1_photopath_5',
             onEachFeature: pop_module1_photopath_5,
             pointToLayer: function (feature, latlng) {
-                var context = {
-                    feature: feature,
-                    variables: {}
-                };
                 return L.circleMarker(latlng, style_module1_photopath_5_0(feature));
             },
         });
@@ -700,10 +686,6 @@
         setBounds();
         var i = 0;
         layer_villagesizev1_3.eachLayer(function(layer) {
-            var context = {
-                feature: layer.feature,
-                variables: {}
-            };
             layer.bindTooltip((layer.feature.properties['村落'] !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Kaiti TC\', sans-serif;">' + layer.feature.properties['村落']).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_villagesizev1_3'});
             labels.push(layer);
             totalMarkers += 1;
