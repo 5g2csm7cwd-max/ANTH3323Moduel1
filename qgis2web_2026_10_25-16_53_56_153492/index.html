@@ -239,7 +239,7 @@
                         <td colspan="2">' + (feature.properties['file_name'] !== null ? autolinker.link(String(feature.properties['file_name']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
                     </tr>\
                     <tr>\
-                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/[\\/:]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
+                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/C:[\\\/]/gi, '_').replace(/[\\\/]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
                     </tr>\
                     <tr>\
                         <td colspan="2">' + (feature.properties['keycode'] !== null ? autolinker.link(String(feature.properties['keycode']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
@@ -355,7 +355,7 @@
                         <td colspan="2">' + (feature.properties['clearing_note'] !== null ? autolinker.link(String(feature.properties['clearing_note']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
                     </tr>\
                     <tr>\
-                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/[\\/:]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
+                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/C:[\\\/]/gi, '_').replace(/[\\\/]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
                     </tr>\
                 </table>';
             var content = removeEmptyRowsFromPopupContent(popupContent, feature);
