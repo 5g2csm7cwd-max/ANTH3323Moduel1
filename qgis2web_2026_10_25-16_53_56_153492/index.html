@@ -6,8 +6,8 @@
         <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="icon" href="data:,">
         <link rel="stylesheet" href="css/leaflet.css">
-        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
         <link rel="stylesheet" href="css/qgis2web.css">
         <link rel="stylesheet" href="css/fontawesome-all.min.css">
         <link rel="stylesheet" href="css/MarkerCluster.css">
@@ -28,7 +28,6 @@
         </div>
         <script src="js/qgis2web_expressions.js"></script>
         <script src="js/leaflet.js"></script>
-        <script src="js/L.Control.Layers.Tree.min.js"></script>
         <script src="js/leaflet.rotatedMarker.js"></script>
         <script src="js/leaflet.pattern.js"></script>
         <script src="js/leaflet-hash.js"></script>
@@ -73,6 +72,7 @@
                     popup._contentNode.classList.add('media');
                     var img = popup._contentNode.querySelector('td img');
                     if (img) {
+                        // If already loaded (cache), update immediately
                         if (img.complete && img.naturalHeight > 0) {
                             popup.update();
                         } else {
@@ -104,6 +104,7 @@
                     video.style.maxWidth = "60vw";
                     imgTd.parentNode.replaceChild(video, imgTd);
                     popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
                     video.addEventListener('loadedmetadata', function() {
                         popup.update();
                     });
@@ -212,6 +213,10 @@
             pane: 'pane_villagesizev1_3',
             onEachFeature: pop_villagesizev1_3,
             pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
                 return L.circleMarker(latlng, style_villagesizev1_3_0(feature));
             },
         });
@@ -297,6 +302,10 @@
             pane: 'pane_week5_table2_4',
             onEachFeature: pop_week5_table2_4,
             pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
                 return L.circleMarker(latlng, style_week5_table2_4_0(feature));
             },
         });
@@ -345,7 +354,7 @@
                         <td colspan="2">' + (feature.properties['clearing_note'] !== null ? autolinker.link(String(feature.properties['clearing_note']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
                     </tr>\
                     <tr>\
-                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
+                        <td colspan="2">' + (feature.properties['photo_path'] !== null ? '<img src="images/' + String(feature.properties['photo_path']).replace(/[\\/:]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
                     </tr>\
                 </table>';
             var content = removeEmptyRowsFromPopupContent(popupContent, feature);
@@ -674,6 +683,10 @@
             pane: 'pane_module1_photopath_5',
             onEachFeature: pop_module1_photopath_5,
             pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
                 return L.circleMarker(latlng, style_module1_photopath_5_0(feature));
             },
         });
@@ -686,6 +699,10 @@
         setBounds();
         var i = 0;
         layer_villagesizev1_3.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
             layer.bindTooltip((layer.feature.properties['村落'] !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Kaiti TC\', sans-serif;">' + layer.feature.properties['村落']).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_villagesizev1_3'});
             labels.push(layer);
             totalMarkers += 1;
