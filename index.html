@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="initial-scale=1,user-scalable=no">
+<title>ANTH3323 Module 1 — 互動地圖</title>
+<link rel="icon" href="data:,">
+<style>
+  html,body{height:100%;margin:0;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    background:#f1f1f1;color:#323232}
+  .wrap{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;box-sizing:border-box}
+  h1{font-size:20px;font-weight:500;margin:0}
+  p{margin:0;font-size:14px;color:#666}
+  a.cta{display:inline-block;padding:11px 22px;background:#4183c4;color:#fff;text-decoration:none;
+    border-radius:6px;font-size:15px}
+  a.cta:hover{background:#2f6bad}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ANTH3323 Module 1 — 互動地圖</h1>
+  <p>正在開啟互動地圖…</p>
+  <a class="cta" id="go" href="qgis2web_2026_10_25-16_53_56_153492/index_custom_v1.html#19/22.27708/113.93440">進入互動地圖</a>
+</div>
+<script>
+  var DEFAULT_HASH = '#19/22.27708/113.93440';
+  var target = 'qgis2web_2026_10_25-16_53_56_153492/index_custom_v1.html' +
+               (location.hash || DEFAULT_HASH);
+  document.getElementById('go').setAttribute('href', target);
+  location.replace(target);
+</script>
+</body>
+</html>
