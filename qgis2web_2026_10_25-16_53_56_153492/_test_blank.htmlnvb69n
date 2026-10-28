@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>ANTH3323 Module 1 — Interactive Photo Map</title>
+<link rel="icon" href="data:,">
+
+<!-- Reuse existing qgis2web resources (relative paths; no new/modified css, js, data, images) -->
+<link rel="stylesheet" href="css/leaflet.css">
+<link rel="stylesheet" href="css/MarkerCluster.css">
+<link rel="stylesheet" href="css/MarkerCluster.Default.css">
+
+<style>
+:root{
+  --bg:#eef1f4; --panel:#fff; --line:#dde3e9; --ink:#1f2933; --muted:#66727f;
+  --accent:#17608f; --accent-soft:#e6f0f7; --warn:#a15c07;
+  --c-low:#c9dcea; --c-lowmid:#8fb8d4; --c-med:#4a90c2; --c-high:#17608f;
+  --highlight:#ffb703;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","PingFang TC",
+              "Microsoft JhengHei",Roboto,sans-serif;
+  font-size:14px;line-height:1.45;color:var(--ink);background:var(--bg);
+  overflow:hidden;-webkit-text-size-adjust:100%;
+}
+/* Fatal error overlay */
+.fatal-error{
+  position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
+  background:rgba(239,243,247,.96);padding:20px;
+}
+.fatal-error .box{
+  max-width:560px;width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;
+  padding:24px;box-shadow:0 8px 30px rgba(16,24,32,.18);
+}
+.fatal-error h2{font-size:17px;margin-bottom:12px;color:#8a2a2a}
+.fatal-error p{font-size:13.5px;line-height:1.6;margin-bottom:12px;color:#3b4652}
+.fatal-error code{
+  display:block;background:#f4f6f8;border:1px solid var(--line);border-radius:6px;
+  padding:10px 12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;
+  color:#1f2933;white-space:pre-wrap;word-break:break-all;margin-bottom:12px;
+}
+.fatal-error .note{
+  font-size:12px;color:var(--muted);background:#fafbfc;border:1px solid var(--line);
+  border-radius:6px;padding:10px 12px;
+}
+
+/* ---------------- Topbar ---------------- */
+.topbar{
+  flex:0 0 auto;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  padding:9px 16px;background:var(--panel);border-bottom:1px solid var(--line);
+}
+.topbar h1{font-size:15px;font-weight:700}
+.topbar .sub{font-size:12px;color:var(--muted)}
+.topbar .spacer{flex:1 1 auto}
+.topbar .hint{font-size:11.5px;color:var(--muted)}
+
+/* ---------------- Columns ---------------- */
+.columns{flex:1 1 auto;display:grid;min-height:0;grid-template-columns:300px minmax(0,1fr) 370px}
+.col{min-height:0;min-width:0;overflow:hidden;display:flex;flex-direction:column}
+.col-left{background:var(--panel);border-right:1px solid var(--line)}
+.col-map{background:#dfe6ec;position:relative}
+.col-right{background:var(--panel);border-left:1px solid var(--line)}
+.scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px}
+
+/* ---------------- Filters ---------------- */
+.panel-title{
+  font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:10px;
+}
+.actions{display:flex;gap:8px;margin-bottom:10px}
+.actions button{
+  flex:1;padding:7px 10px;font:inherit;font-size:12.5px;font-weight:600;color:var(--ink);
+  background:#fff;border:1px solid var(--line);border-radius:6px;cursor:pointer;
+  transition:background .14s,border-color .14s;
+}
+.actions button:hover{background:#eef2f6;border-color:#c6d0da}
+.actions button:active{background:#e3eaf0}
+
+.count-box{
+  display:flex;align-items:baseline;gap:6px;padding:9px 11px;margin-bottom:14px;
+  background:var(--accent-soft);border:1px solid #cfe0ee;border-radius:6px;
+  font-size:12.5px;color:#2b4a63;
+}
+.count-box b{font-size:16px;color:var(--accent);font-weight:700}
+
+.filter-group{margin-bottom:16px}
+.filter-group > .label{
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-size:12px;font-weight:700;padding-bottom:5px;margin-bottom:6px;
+  border-bottom:1px solid var(--line);
+}
+.filter-group > .label .n{font-weight:500;font-size:11px;color:var(--muted)}
+.opts{max-height:240px;overflow-y:auto}
+.opt{display:flex;align-items:flex-start;gap:8px;padding:4px 2px;cursor:pointer;font-size:12.5px}
+.opt:hover{color:var(--accent)}
+.opt input{margin:2px 0 0;flex:0 0 auto;accent-color:var(--accent);cursor:pointer}
+.opt .txt{word-break:break-word}
+.opt .cnt{color:var(--muted);font-size:11px}
+
+/* ---------------- Map ---------------- */
+#map{width:100%;height:100%;background:#dfe6ec}
+.leaflet-container{font:inherit}
+.leaflet-container .leaflet-control-attribution{font-size:10.5px}
+
+.map-status{
+  position:absolute;z-index:1000;left:10px;bottom:10px;display:flex;gap:8px;align-items:center;
+  padding:6px 10px;font-size:11.5px;color:#33414d;background:rgba(255,255,255,.94);
+  border:1px solid var(--line);border-radius:6px;box-shadow:0 1px 4px rgba(16,24,32,.14);
+}
+.map-status .sw{width:10px;height:10px;border-radius:50%;display:inline-block}
+
+/* Raster control */
+.raster-ctl{
+  position:absolute;z-index:1000;right:10px;bottom:30px;width:190px;
+  padding:9px 10px;background:rgba(255,255,255,.95);border:1px solid var(--line);
+  border-radius:6px;box-shadow:0 1px 4px rgba(16,24,32,.14);font-size:11.5px;
+}
+.raster-ctl .row{display:flex;align-items:center;gap:6px}
+.raster-ctl .row + .row{margin-top:7px}
+.raster-ctl label{cursor:pointer;user-select:none}
+.raster-ctl input[type=range]{flex:1;accent-color:var(--accent)}
+.raster-ctl .val{color:var(--muted);min-width:30px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* Legend */
+.legend{
+  position:absolute;z-index:1000;left:10px;top:78px;padding:8px 10px;
+  background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:6px;
+  box-shadow:0 1px 4px rgba(16,24,32,.14);font-size:11px;color:#33414d;
+}
+.legend .t{font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.legend .it{display:flex;align-items:center;gap:6px;padding:1.5px 0}
+.legend .dot{width:10px;height:10px;border-radius:50%;border:1.5px solid #1f2933;flex:0 0 auto}
+
+/* Cluster icon */
+.mc-wrap{background:none;border:0}
+.mc-icon{
+  display:flex;align-items:center;justify-content:center;border-radius:50%;
+  background:#17608f;color:#fff;font-size:12.5px;font-weight:700;
+  border:2px solid #fff;box-shadow:0 1px 6px rgba(16,24,32,.35);
+  transition:transform .12s;
+}
+.mc-icon:hover{transform:scale(1.08)}
+
+/* Selected marker highlight */
+.marker-selected{animation:pulse 1.4s ease-out infinite}
+@keyframes pulse{
+  0%{stroke-opacity:1;stroke-width:4}
+  70%{stroke-opacity:.25;stroke-width:12}
+  100%{stroke-opacity:1;stroke-width:4}
+}
+.marker-halo{animation:haloPulse 1.6s ease-out infinite}
+@keyframes haloPulse{
+  0%{stroke-opacity:.95;stroke-width:5;fill-opacity:.30}
+  70%{stroke-opacity:.15;stroke-width:14;fill-opacity:.08}
+  100%{stroke-opacity:.95;stroke-width:5;fill-opacity:.30}
+}
+@media (prefers-reduced-motion:reduce){
+  .marker-selected,.marker-halo{animation:none}
+}
+
+/* ---------------- Photo + metadata ---------------- */
+.placeholder{padding:44px 18px;text-align:center;color:var(--muted);font-size:13px}
+.placeholder .big{font-size:26px;margin-bottom:8px;opacity:.5}
+
+.photo-head{padding:10px 14px;border-bottom:1px solid var(--line);background:#fafbfc}
+.photo-head .fname{font-size:13.5px;font-weight:700;word-break:break-all}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.chip{
+  display:inline-block;padding:2px 8px;font-size:11px;background:var(--accent-soft);
+  color:#2b5e85;border:1px solid #cfe0ee;border-radius:10px;
+}
+
+.photo-frame{padding:12px 14px;border-bottom:1px solid var(--line)}
+.photo-frame img{width:100%;height:auto;display:block;border-radius:6px;border:1px solid var(--line);background:#eceff2}
+.photo-frame .noimg{
+  padding:28px 12px;text-align:center;font-size:12.5px;color:var(--warn);
+  background:#fdf6e8;border:1px dashed #e2c78d;border-radius:6px;
+}
+.photo-frame .noimg small{display:block;margin-top:4px;color:#8a7a5c;word-break:break-all}
+
+.meta{padding:12px 14px 6px}
+.meta-row{padding:7px 0;border-bottom:1px solid #eef1f4}
+.meta-row:last-child{border-bottom:0}
+.meta-label{
+  display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:2px;
+}
+.meta-value{font-size:13px;word-break:break-word}
+.meta-value.missing{color:#aeb8c2}
+.meta-value.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+
+details.tech{margin:6px 14px 14px;border:1px solid var(--line);border-radius:6px;background:#fafbfc}
+details.tech > summary{
+  cursor:pointer;padding:8px 11px;font-size:11.5px;font-weight:700;color:#45525e;
+  list-style:none;
+}
+details.tech > summary::-webkit-details-marker{display:none}
+details.tech > summary::before{content:"\25B8 ";color:var(--accent)}
+details.tech[open] > summary::before{content:"\25BE "}
+details.tech .inner{padding:0 11px 11px}
+details.tech .blk + .blk{margin-top:9px}
+details.tech .k{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+details.tech .v{font-size:11.5px;line-height:1.6;color:#3b4652;word-break:break-word}
+
+.foot-note{
+  margin:0 14px 16px;padding:9px 10px;font-size:11.5px;line-height:1.55;color:#5a6672;
+  background:#f4f6f8;border:1px solid var(--line);border-radius:6px;
+}
+
+/* ---------------- Responsive ---------------- */
+@media (max-width:1180px){
+  .columns{grid-template-columns:260px minmax(0,1fr) 330px}
+}
+@media (max-width:900px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100dvh}
+  .columns{grid-template-columns:1fr;grid-template-rows:auto minmax(340px,52vh) auto}
+  .col-left{border-right:0;border-bottom:1px solid var(--line)}
+  .col-left .scroll{max-height:none}
+  .filter-body{display:flex;gap:16px;flex-wrap:wrap}
+  .filter-body .filter-group{flex:1 1 200px;margin-bottom:0}
+  .filter-body .opts{max-height:none;overflow:visible}
+  .col-right{border-left:0;border-top:1px solid var(--line)}
+  .col-map{min-height:340px}
+  .legend{font-size:10px}
+}
+@media (max-width:640px){
+  .columns{grid-template-rows:auto 46vh auto}
+  .filter-body{display:block}
+  .filter-body .filter-group{margin-bottom:14px}
+  .col-map{min-height:300px}
+  .topbar{gap:3px 10px;padding:8px 12px}
+  .topbar .hint{display:none}
+  .raster-ctl{width:150px;font-size:10.5px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <h1>ANTH3323 Module 1 &mdash; Interactive Photo Map</h1>
+    <span class="sub">Tung Chung: Lung Tseng Tau / Wong Ka Wai field photos</span>
+    <span class="spacer"></span>
+    <span class="hint">Click a marker to view photo &amp; metadata</span>
+  </header>
+
+  <div class="columns">
+
+    <!-- ============ Left: Filters ============ -->
+    <section class="col col-left" aria-label="Filters">
+      <div class="scroll">
+        <div class="panel-title">Filters</div>
+        <div class="actions">
+          <button id="btnSelectAll" type="button">Select all</button>
+          <button id="btnClear" type="button">Clear</button>
+        </div>
+        <div class="count-box">Showing <b id="shownCount">0</b> / <span id="totalCount">0</span> records</div>
+        <div class="filter-body" id="filterBody"></div>
+      </div>
+    </section>
+
+    <!-- ============ Center: Map ============ -->
+    <section class="col col-map" aria-label="Interactive map">
+      <div id="map"></div>
+
+      <div class="legend" id="legend">
+        <div class="t">Coordinate confidence</div>
+        <div class="it"><span class="dot" style="background:#c9dcea"></span>LOW</div>
+        <div class="it"><span class="dot" style="background:#8fb8d4"></span>LOW-MEDIUM</div>
+        <div class="it"><span class="dot" style="background:#4a90c2"></span>MEDIUM</div>
+        <div class="it"><span class="dot" style="background:#17608f"></span>MEDIUM-HIGH</div>
+      </div>
+
+      <div class="raster-ctl">
+        <div class="row">
+          <input type="checkbox" id="rasterToggle" checked>
+          <label for="rasterToggle">Topographic maps (3)</label>
+        </div>
+        <div class="row">
+          <input type="range" id="rasterOpacity" min="0" max="100" step="5" value="60">
+          <span class="val" id="opacityVal">60%</span>
+        </div>
+      </div>
+
+      <div class="map-status">
+        <span class="sw" style="background:#17608f"></span>
+        <span id="mapStatusText">Loading...</span>
+      </div>
+    </section>
+
+    <!-- ============ Right: Photo + Metadata ============ -->
+    <section class="col col-right" aria-label="Photograph and metadata">
+      <div class="scroll" id="rightBody">
+        <div class="placeholder">
+          <div class="big">&#128506;</div>
+          Click a photo marker on the map<br>to view photo &amp; metadata
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- Reuse existing JS (relative paths) -->
+<script src="js/leaflet.js"></script>
+<script src="js/leaflet.markercluster.js"></script>
+<script src="js/leaflet-hash.js"></script>
+<!-- Reuse existing data (read-only; not modified) -->
+<script src="data/module1_photopath_5.js" onerror="window.__dataLoadFailed=true"></script>
+
+<script>
+window.__pageLoadedAt = new Date().toISOString();
+(function () {
+  'use strict';
+
+  function showFatalError(title, lines) {
+    var html = '<div class="fatal-error"><div class="box"><h2>' + title + '</h2>';
+    lines.forEach(function (ln) {
+      html += '<p>' + ln.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+    });
+    html += '<code>cd "' + window.location.pathname.replace(/\/[^\/]*$/, '') + '"\npython3 -m http.server 8000</code>';
+    html += '<p>Then open:</p>';
+    html += '<code>http://127.0.0.1:8000/index_custom_v1.html</code>';
+    html += '<div class="note">This page needs its sibling folders (css/, js/, data/, images/) to load. Previewing the single HTML file in a sandboxed file viewer will not resolve those relative paths.</div>';
+    html += '</div></div>';
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    document.body.appendChild(div.firstElementChild);
+  }
+
+  /* If data script failed to load (onerror fired), show error immediately */
+  if (window.__dataLoadFailed) {
+    showFatalError(
+      'Data failed to load',
+      ['The browser could not load data/module1_photopath_5.js. This usually happens when the HTML file is opened directly or previewed in a sandboxed viewer, which blocks relative paths to sibling files.']
+    );
+    return;
+  }
+
+  /* If Leaflet is missing, the page cannot render */
+  if (typeof L === 'undefined') {
+    showFatalError(
+      'Leaflet failed to load',
+      ['The browser could not load js/leaflet.js. Please serve the entire project folder via HTTP instead of opening this single HTML file directly.']
+    );
+    return;
+  }
+
+  /* =========================================================================
+   * 0. Constants: all raster bounds match original index.html exactly
+   * ========================================================================= */
+
+  var RASTERS = [
+    { url: 'data/OPM100_2025_0.png', label: 'Lantau 1:100',
+      bounds: [[22.076205181083964, 113.75167100210537],
+               [22.624727555473488, 114.51155829843452]] },
+    { url: 'data/9SEA_1.png', label: '9SE-A West',
+      bounds: [[22.273607952312364, 113.89769308407159],
+               [22.300758044667496, 113.93413201704129]] },
+    { url: 'data/9SEB_2.png', label: '9SE-B East',
+      bounds: [[22.273666401328807, 113.93408524462212],
+               [22.300808410150857, 113.9705172786357]] }
+  ];
+
+  var INITIAL_CENTER = [22.27708, 113.93440];
+  var INITIAL_ZOOM = 19;
+
+  var CONFIDENCE_ORDER = ['LOW', 'LOW-MEDIUM', 'MEDIUM', 'MEDIUM-HIGH'];
+  var CONFIDENCE_COLOR = {
+    'LOW': '#c9dcea', 'LOW-MEDIUM': '#8fb8d4',
+    'MEDIUM': '#4a90c2', 'MEDIUM-HIGH': '#17608f'
+  };
+
+  /* =========================================================================
+   * 1. Utilities
+   * ========================================================================= */
+  function val(v) {
+    if (v === null || v === undefined) return null;
+    var s = String(v).trim();
+    return s === '' ? null : s;
+  }
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function el(tag, cls, txt) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (txt !== undefined) n.textContent = txt;
+    return n;
+  }
+
+  /* =========================================================================
+   * 2. Build records from GeoJSON (read directly from global var)
+   * ========================================================================= */
+  var state = {
+    records: [], markers: [], byId: {}, selectedId: null,
+    filters: {}, allValues: {}, halo: null
+  };
+
+  function buildRecords(fc) {
+    if (!fc || !fc.features) return [];
+    return fc.features.map(function (f) {
+      var p = f.properties || {};
+      var lat = parseFloat(p.latitude);
+      var lng = parseFloat(p.longitude);
+      if (!isFinite(lat) || !isFinite(lng)) {
+        if (f.geometry && f.geometry.coordinates) {
+          lng = f.geometry.coordinates[0];
+          lat = f.geometry.coordinates[1];
+        }
+      }
+      return {
+        props: p,
+        id: val(p.record_no) || val(p.photo_no) || String(Math.random()),
+        lat: lat, lng: lng
+      };
+    }).filter(function (r) { return isFinite(r.lat) && isFinite(r.lng); });
+  }
+
+  /* =========================================================================
+   * 3. Map + raster
+   *    Uses CartoDB Positron base map (light, ideal under scanned maps)
+   *    plus original 3 rasters with exact same bounds as index.html
+   * ========================================================================= */
+  var map, cluster, rasterGroup, currentOpacity = 0.60;
+
+  function initMap() {
+    map = L.map('map', {
+      zoomControl: false, maxZoom: 22, minZoom: 1,
+      preferCanvas: false
+    }).setView(INITIAL_CENTER, INITIAL_ZOOM);
+
+    L.control.zoom({ position: 'topleft' }).addTo(map);
+
+    /* Base map: CartoDB Positron (light) */
+    var positron = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        maxNativeZoom: 20, maxZoom: 22,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank">CARTO</a>'
+      });
+
+    var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxNativeZoom: 19, maxZoom: 22,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+    });
+
+    positron.addTo(map);
+
+    L.control.layers(
+      { 'Positron (light)': positron, 'OSM (streets)': osm },
+      {},
+      { position: 'topright', collapsed: true }
+    ).addTo(map);
+
+    /* Raster overlays: same files and bounds as original index.html */
+    map.createPane('pane_raster');
+    map.getPane('pane_raster').style.zIndex = 350;
+
+    rasterGroup = L.layerGroup();
+    RASTERS.forEach(function (r) {
+      L.imageOverlay(r.url, r.bounds, {
+        pane: 'pane_raster', opacity: currentOpacity, interactive: false
+      }).addTo(rasterGroup);
+    });
+    rasterGroup.addTo(map);
+
+    /* Selected marker halo pane (always on top) */
+    map.createPane('pane_selected');
+    map.getPane('pane_selected').style.zIndex = 650;
+    map.getPane('pane_selected').style.pointerEvents = 'none';
+
+    /* Photo marker pane (above raster) */
+    map.createPane('pane_photo');
+    map.getPane('pane_photo').style.zIndex = 420;
+
+    map.attributionControl.setPrefix(
+      '<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; ' +
+      '<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
+
+    try { new L.Hash(map); } catch (e) { /* hash optional */ }
+  }
+
+  function wireRasterControls() {
+    var toggle = document.getElementById('rasterToggle');
+    var slider = document.getElementById('rasterOpacity');
+    var label = document.getElementById('opacityVal');
+
+    toggle.addEventListener('change', function () {
+      if (toggle.checked) rasterGroup.addTo(map);
+      else map.removeLayer(rasterGroup);
+    });
+
+    slider.addEventListener('input', function () {
+      currentOpacity = parseInt(slider.value, 10) / 100;
+      label.textContent = slider.value + '%';
+      rasterGroup.eachLayer(function (lyr) { lyr.setOpacity(currentOpacity); });
+    });
+  }
+
+  /* =========================================================================
+   * 4. Markers with clustering
+   * ========================================================================= */
+  function styleFor(rec) {
+    return {
+      pane: 'pane_photo', radius: 7, opacity: 1, weight: 1.5,
+      color: '#1f2933', fill: true, fillOpacity: 1,
+      fillColor: CONFIDENCE_COLOR[val(rec.props.coordinate_confidence)] || '#9aa7b3',
+      interactive: true,
+      bubblingMouseEvents: false
+    };
+  }
+  function styleSelected(rec) {
+    var s = styleFor(rec);
+    s.radius = 11; s.weight = 4; s.color = '#ffffff';
+    s.fillColor = '#ffb703'; s.className = 'marker-selected';
+    return s;
+  }
+  function styleHalo() {
+    return {
+      pane: 'pane_selected', radius: 14, opacity: 1, weight: 5,
+      color: '#ffffff', fill: true, fillOpacity: 0.25, fillColor: '#ffb703',
+      interactive: false, className: 'marker-halo'
+    };
+  }
+
+  function buildMarkers() {
+    cluster = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      spiderfyDistanceMultiplier: 3,
+      maxClusterRadius: 28,
+      iconCreateFunction: function (c) {
+        var n = c.getChildCount();
+        var size = n < 10 ? 34 : (n < 50 ? 40 : 46);
+        return L.divIcon({
+          html: '<div class="mc-icon" style="width:' + size + 'px;height:' + size + 'px">' + n + '</div>',
+          className: 'mc-wrap',
+          iconSize: [size, size]
+        });
+      }
+    });
+    cluster.addTo(map);
+
+    state.records.forEach(function (rec) {
+      var m = L.circleMarker([rec.lat, rec.lng], styleFor(rec));
+      m.on('click', function () { selectMarker(rec.id); });
+      m.on('add', function () {
+        setMarkerClass(m, state.selectedId === rec.id);
+      });
+      state.byId[rec.id] = m;
+      state.markers.push({ id: rec.id, marker: m, record: rec });
+    });
+  }
+
+  /* =========================================================================
+   * 5. Filters — dynamically built from attribute table
+   *    Fields: photo_no, record_no, Location_note, remarks_raw,
+   *           coordinate_confidence
+   * ========================================================================= */
+  var FILTER_DEFS = [
+    { key: 'photo_no',              label: 'photo_no',              get: function (r) { return val(r.props.photo_no) || '(empty)'; } },
+    { key: 'record_no',             label: 'record_no',             get: function (r) { return val(r.props.record_no) || '(empty)'; } },
+    { key: 'Location_note',         label: 'Location_note',         get: function (r) { return val(r.props.Location_note) || '(empty)'; } },
+    { key: 'remarks_raw',           label: 'remarks_raw',          get: function (r) { return val(r.props.remarks_raw) || '(empty)'; } },
+    { key: 'coordinate_confidence', label: 'coordinate_confidence', get: function (r) { return val(r.props.coordinate_confidence) || '(empty)'; } }
+  ];
+
+  function orderValues(key, values) {
+    if (key === 'coordinate_confidence') {
+      return values.slice().sort(function (a, b) {
+        var ia = CONFIDENCE_ORDER.indexOf(a), ib = CONFIDENCE_ORDER.indexOf(b);
+        if (ia < 0) ia = 99;
+        if (ib < 0) ib = 99;
+        return ia - ib;
+      });
+    }
+    return values.slice().sort(function (a, b) { return a.localeCompare(b, 'zh-Hant'); });
+  }
+
+  function buildFilters() {
+    var body = document.getElementById('filterBody');
+    body.innerHTML = '';
+    state.filters = {};
+    state.allValues = {};
+
+    FILTER_DEFS.forEach(function (def) {
+      var counts = {};
+      state.records.forEach(function (r) {
+        var v = def.get(r);
+        counts[v] = (counts[v] || 0) + 1;
+      });
+      var values = orderValues(def.key, Object.keys(counts));
+
+      state.filters[def.key] = new Set(values);
+      state.allValues[def.key] = values.slice();
+
+      var group = el('div', 'filter-group');
+      var label = el('div', 'label');
+      label.appendChild(el('span', null, def.label));
+      label.appendChild(el('span', 'n', values.length + ' values'));
+      group.appendChild(label);
+
+      var opts = el('div', 'opts');
+      values.forEach(function (v) {
+        var lab = el('label', 'opt');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = true; cb.value = v;
+        cb.addEventListener('change', function () {
+          if (cb.checked) state.filters[def.key].add(v);
+          else state.filters[def.key].delete(v);
+          applyFilters();
+        });
+        lab.appendChild(cb);
+        lab.appendChild(el('span', 'txt', v));
+        lab.appendChild(el('span', 'cnt', '(' + counts[v] + ')'));
+        opts.appendChild(lab);
+      });
+      group.appendChild(opts);
+      body.appendChild(group);
+    });
+  }
+
+  function recordMatches(rec) {
+    for (var i = 0; i < FILTER_DEFS.length; i++) {
+      var def = FILTER_DEFS[i];
+      if (!state.filters[def.key].has(def.get(rec))) return false;
+    }
+    return true;
+  }
+
+  function applyFilters() {
+    var shown = 0;
+    cluster.clearLayers();
+    state.markers.forEach(function (m) {
+      if (recordMatches(m.record)) { cluster.addLayer(m.marker); shown++; }
+    });
+    document.getElementById('shownCount').textContent = shown;
+    document.getElementById('totalCount').textContent = state.records.length;
+
+    if (state.selectedId) {
+      var still = state.records.some(function (r) {
+        return r.id === state.selectedId && recordMatches(r);
+      });
+      if (!still) {
+        deselect();
+        clearRight('Selected record is not in current filter');
+      }
+    }
+  }
+
+  /* =========================================================================
+   * 6. Right panel: photo + selected metadata fields only
+   *    Shows: file_name (= photo_path), place_name (= Location_note),
+   *           capture_date (not in data -> shows —), photo_subject (= remarks_raw),
+   *           direction (not in data -> shows —), location_precision (= coordinate_confidence),
+   *           location_source (= coordinate_source), notes (= coordinate_note),
+   *           location_note (= Location_note)
+   *    Does NOT show all database fields.
+   * ========================================================================= */
+  function showRecord(rec) {
+    var p = rec.props;
+    var photoNo = val(p.photo_no) || rec.id;
+    var photoPath = val(p.photo_path);
+    var locNote = val(p.Location_note);
+    var remarksRaw = val(p.remarks_raw);
+    var coordConf = val(p.coordinate_confidence);
+    var coordSrc = val(p.coordinate_source);
+    var coordNote = val(p.coordinate_note);
+
+    var html = '';
+
+    /* Header: file_name */
+    html += '<div class="photo-head">';
+    html += '<div class="fname">' + esc(photoPath || photoNo) + '</div>';
+    html += '<div class="chips">';
+    html += '<span class="chip">' + esc(photoNo) + '</span>';
+    if (coordConf) {
+      var dotColor = CONFIDENCE_COLOR[coordConf] || '#9aa7b3';
+      html += '<span class="chip" style="border-color:' + dotColor + ';background:' + dotColor + '22">' + esc(coordConf) + '</span>';
+    }
+    html += '</div>';
+    html += '</div>';
+
+    /* Photo */
+    html += '<div class="photo-frame">';
+    if (photoPath) {
+      var imgSrc = 'images/' + String(photoPath).replace(/[\\/:]/g, '_').trim();
+      html += '<img id="detailPhoto" alt="' + esc(photoNo) + '" src="' + esc(imgSrc) + '">';
+    } else {
+      html += '<div class="noimg">No photo_path for this record<small>' + esc(rec.id) + '</small></div>';
+    }
+    html += '</div>';
+
+    /* Metadata: only the requested fields */
+    html += '<div class="meta">';
+
+    /* file_name */
+    html += metaRow('file_name', photoPath);
+    /* place_name (= Location_note) */
+    html += metaRow('place_name', locNote);
+    /* capture_date — not present in data */
+    html += metaRow('capture_date', null);
+    /* photo_subject (= remarks_raw) */
+    html += metaRow('photo_subject', remarksRaw);
+    /* direction — not present in data */
+    html += metaRow('direction', null);
+    /* location_precision (= coordinate_confidence) */
+    html += metaRow('location_precision', coordConf);
+    /* location_source (= coordinate_source) */
+    html += metaRow('location_source', coordSrc, true);
+    /* notes (= coordinate_note) */
+    html += metaRow('notes', coordNote);
+    /* location_note (= Location_note) */
+    html += metaRow('location_note', locNote);
+
+    html += '</div>';
+
+    /* Collapsible clearing note (not all DB fields shown by default) */
+    var clrNote = val(p.clearing_note);
+    if (clrNote) {
+      html += '<details class="tech"><summary>Clearing note (supplementary)</summary><div class="inner">';
+      html += '<div class="blk"><div class="k">clearing_note</div><div class="v">' + esc(clrNote) + '</div></div>';
+      html += '</div></details>';
+    }
+
+    html += '<div class="foot-note">Photo loaded from images/ via photo_path. ' +
+            'Fields mapped from data/module1_photopath_5.js. ' +
+            'Original data has not been modified.</div>';
+
+    var right = document.getElementById('rightBody');
+    right.innerHTML = html;
+
+    var img = document.getElementById('detailPhoto');
+    if (img) {
+      img.addEventListener('error', function () {
+        var box = document.querySelector('.photo-frame');
+        if (box) {
+          box.innerHTML = '<div class="noimg">Photo load failed<small>' +
+                          esc(img.getAttribute('src')) + '</small></div>';
+        }
+      });
+    }
+  }
+
+  function metaRow(label, value, mono) {
+    var cls = mono ? 'meta-value mono' : 'meta-value';
+    if (value === null || value === undefined) {
+      return '<div class="meta-row"><span class="meta-label">' + esc(label) + '</span>' +
+             '<span class="meta-value missing">&mdash;</span></div>';
+    }
+    return '<div class="meta-row"><span class="meta-label">' + esc(label) + '</span>' +
+           '<span class="' + cls + '">' + esc(value) + '</span></div>';
+  }
+
+  function clearRight(msg) {
+    document.getElementById('rightBody').innerHTML =
+      '<div class="placeholder"><div class="big">&#128506;</div>' +
+      (msg || 'Click a photo marker on the map<br>to view photo &amp; metadata') + '</div>';
+  }
+
+  /* =========================================================================
+   * 7. Selection and highlight
+   * ========================================================================= */
+  function setMarkerClass(marker, on) {
+    var node = marker && marker.getElement ? marker.getElement() : null;
+    if (!node) return;
+    if (on) node.classList.add('marker-selected');
+    else node.classList.remove('marker-selected');
+  }
+
+  function showHalo(latlng) {
+    if (!latlng) return;
+    if (!state.halo) {
+      state.halo = L.circleMarker(latlng, styleHalo()).addTo(map);
+    } else {
+      state.halo.setLatLng(latlng);
+    }
+  }
+  function clearHalo() {
+    if (state.halo) { map.removeLayer(state.halo); state.halo = null; }
+  }
+
+  function deselect() {
+    if (state.selectedId && state.byId[state.selectedId]) {
+      var old = state.byId[state.selectedId];
+      var rec = null;
+      for (var i = 0; i < state.records.length; i++) {
+        if (state.records[i].id === state.selectedId) { rec = state.records[i]; break; }
+      }
+      if (rec) old.setStyle(styleFor(rec));
+      setMarkerClass(old, false);
+    }
+    state.selectedId = null;
+    clearHalo();
+  }
+
+  function selectMarker(id) {
+    if (state.selectedId === id) return;
+    deselect();
+    state.selectedId = id;
+    var m = state.byId[id];
+    var rec = null;
+    for (var i = 0; i < state.records.length; i++) {
+      if (state.records[i].id === id) { rec = state.records[i]; break; }
+    }
+    if (!m || !rec) return;
+    m.setStyle(styleSelected(rec));
+    setMarkerClass(m, true);
+    m.bringToFront();
+    showHalo(m.getLatLng());
+    showRecord(rec);
+  }
+
+  /* =========================================================================
+   * 8. Buttons
+   * ========================================================================= */
+  function wireButtons() {
+    document.getElementById('btnSelectAll').addEventListener('click', function () {
+      Object.keys(state.allValues).forEach(function (k) {
+        state.filters[k] = new Set(state.allValues[k]);
+      });
+      document.querySelectorAll('#filterBody input[type=checkbox]').forEach(function (cb) {
+        cb.checked = true;
+      });
+      applyFilters();
+    });
+
+    document.getElementById('btnClear').addEventListener('click', function () {
+      Object.keys(state.filters).forEach(function (k) { state.filters[k] = new Set(); });
+      document.querySelectorAll('#filterBody input[type=checkbox]').forEach(function (cb) {
+        cb.checked = false;
+      });
+      deselect();
+      applyFilters();
+      clearRight('No records match current filter');
+    });
+  }
+
+  /* =========================================================================
+   * 9. Boot
+   * ========================================================================= */
+  function boot() {
+    initMap();
+    wireRasterControls();
+
+    var fc = window.json_module1_photopath_5;
+    if (!fc) {
+      showFatalError(
+        'Photo data not available',
+        ['The page could not read json_module1_photopath_5. Please serve the whole project folder via HTTP rather than opening this single HTML file directly.']
+      );
+      return;
+    }
+
+    state.records = buildRecords(fc);
+    buildMarkers();
+    buildFilters();
+    applyFilters();
+    wireButtons();
+
+    var coordCount = {};
+    state.records.forEach(function (r) {
+      coordCount[r.lat.toFixed(5) + ',' + r.lng.toFixed(5)] = 1;
+    });
+    var n = Object.keys(coordCount).length;
+
+    document.getElementById('mapStatusText').textContent =
+      state.records.length + ' photos / ' + n + ' unique coordinates / click cluster to spiderfy';
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>
