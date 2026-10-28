@@ -1,0 +1,11 @@
+```bash
+git clone https://github.com/5g2csm7cwd-max/ANTH3323Moduel1.git
+cd ANTH3323Moduel1
+git checkout 92e05c72 -- index.html \
+  qgis2web_2026_10_25-16_53_56_153492/index.html \
+  qgis2web_2026_10_25-16_53_56_153492/js \
+  qgis2web_2026_10_25-16_53_56_153492/css \
+  qgis2web_2026_10_25-16_53_56_153492/data
+git commit -m "恢复误删的 index.html 与 js/css/data 资源"
+git push
+```
